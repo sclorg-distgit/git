@@ -1,0 +1,56 @@
+From f60c483d1d135a1f5f7c6067198a6207f1e59dc6 Mon Sep 17 00:00:00 2001
+From: Stefan Agner <stefan@agner.ch>
+Date: Wed, 30 Sep 2015 09:26:09 +0200
+Subject: [PATCH] git-send-email.perl: Fixed sending of many/huge
+ changes/patches
+
+Sometimes sending huge patches/commits fail with
+
+[Net::SMTP::SSL] Connection closed at /usr/lib/git-core/git-send-email
+line 1320.
+
+Running the command with --smtp-debug=1 yields to
+
+Net::SMTP::SSL: Net::Cmd::datasend(): unexpected EOF on command channel:
+at /usr/lib/git-core/git-send-email line 1320.
+[Net::SMTP::SSL] Connection closed at /usr/lib/git-core/git-send-email
+line 1320.
+
+Stefan described it in his mail like this:
+
+It seems to me that there is a size limit, after cutting down the patch
+to ~16K, sending started to work. I cut it twice, once by removing lines
+from the head and once from the bottom, in both cases at the size of
+around 16K I could send the patch.
+
+See also original report:
+http://permalink.gmane.org/gmane.comp.version-control.git/274569
+
+Reported-by: Juston Li <juston.h.li@gmail.com>
+Tested-by: Markos Chandras <hwoarang@gentoo.org>
+Signed-off-by: Lars Wendler <polynomial-c@gentoo.org>
+Signed-off-by: Junio C Hamano <gitster@pobox.com>
+---
+ git-send-email.perl | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/git-send-email.perl b/git-send-email.perl
+index 9949db0..f7f1130 100755
+--- a/git-send-email.perl
++++ b/git-send-email.perl
+@@ -1282,7 +1282,11 @@ X-Mailer: git-send-email $gitversion
+ 		$smtp->mail( $raw_from ) or die $smtp->message;
+ 		$smtp->to( @recipients ) or die $smtp->message;
+ 		$smtp->data or die $smtp->message;
+-		$smtp->datasend("$header\n$message") or die $smtp->message;
++		$smtp->datasend("$header\n") or die $smtp->message;
++		my @lines = split /^/, $message;
++		foreach my $line (@lines) {
++			$smtp->datasend("$line") or die $smtp->message;
++		}
+ 		$smtp->dataend() or die $smtp->message;
+ 		$smtp->code =~ /250|200/ or die "Failed to send $subject\n".$smtp->message;
+ 	}
+-- 
+2.4.3
+

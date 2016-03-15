@@ -1,0 +1,207 @@
+From 0730270cd672467c12a3f3bf36336d169700269a Mon Sep 17 00:00:00 2001
+From: Petr Stodulka <pstodulk@redhat.com>
+Date: Wed, 28 Oct 2015 17:22:13 +0100
+Subject: [PATCH 1/5] transport: add a protocol-whitelist environment variable
+
+If we are cloning an untrusted remote repository into a
+sandbox, we may also want to fetch remote submodules in
+order to get the complete view as intended by the other
+side. However, that opens us up to attacks where a malicious
+user gets us to clone something they would not otherwise
+have access to (this is not necessarily a problem by itself,
+but we may then act on the cloned contents in a way that
+exposes them to the attacker).
+
+Ideally such a setup would sandbox git entirely away from
+high-value items, but this is not always practical or easy
+to set up (e.g., OS network controls may block multiple
+protocols, and we would want to enable some but not others).
+
+We can help this case by providing a way to restrict
+particular protocols. We use a whitelist in the environment.
+This is more annoying to set up than a blacklist, but
+defaults to safety if the set of protocols git supports
+grows). If no whitelist is specified, we continue to default
+to allowing all protocols (this is an "unsafe" default, but
+since the minority of users will want this sandboxing
+effect, it is the only sensible one).
+
+A note on the tests: ideally these would all be in a single
+test file, but the git-daemon and httpd test infrastructure
+is an all-or-nothing proposition rather than a test-by-test
+prerequisite. By putting them all together, we would be
+unable to test the file-local code on machines without
+apache.
+---
+ Documentation/git.txt | 31 +++++++++++++++++++++++++++++++
+ connect.c             |  5 +++++
+ transport-helper.c    |  2 ++
+ transport.c           | 21 ++++++++++++++++++++-
+ transport.h           |  7 +++++++
+ 5 files changed, 65 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/git.txt b/Documentation/git.txt
+index f4cb5cb..71ba92b 100644
+--- a/Documentation/git.txt
++++ b/Documentation/git.txt
+@@ -1069,6 +1069,37 @@ GIT_ICASE_PATHSPECS::
+ 	an operation has touched every ref (e.g., because you are
+ 	cloning a repository to make a backup).
+ 
++`GIT_ALLOW_PROTOCOL`::
++	If set, provide a colon-separated list of protocols which are
++	allowed to be used with fetch/push/clone. This is useful to
++	restrict recursive submodule initialization from an untrusted
++	repository. Any protocol not mentioned will be disallowed (i.e.,
++	this is a whitelist, not a blacklist). If the variable is not
++	set at all, all protocols are enabled.  The protocol names
++	currently used by git are:
++
++	  - `file`: any local file-based path (including `file://` URLs,
++	    or local paths)
++
++	  - `git`: the anonymous git protocol over a direct TCP
++	    connection (or proxy, if configured)
++
++	  - `ssh`: git over ssh (including `host:path` syntax,
++	    `git+ssh://`, etc).
++
++	  - `rsync`: git over rsync
++
++	  - `http`: git over http, both "smart http" and "dumb http".
++	    Note that this does _not_ include `https`; if you want both,
++	    you should specify both as `http:https`.
++
++	  - any external helpers are named by their protocol (e.g., use
++	    `hg` to allow the `git-remote-hg` helper)
+++
++Note that this controls only git's internal protocol selection.
++If libcurl is used (e.g., by the `http` transport), it may
++redirect to other protocols. There is not currently any way to
++restrict this.
+ 
+ Discussion[[Discussion]]
+ ------------------------
+diff --git a/connect.c b/connect.c
+index c0144d8..27a706f 100644
+--- a/connect.c
++++ b/connect.c
+@@ -9,6 +9,7 @@
+ #include "url.h"
+ #include "string-list.h"
+ #include "sha1-array.h"
++#include "transport.h"
+ 
+ static char *server_capabilities;
+ static const char *parse_feature_value(const char *, const char *, int *);
+@@ -694,6 +695,8 @@ struct child_process *git_connect(int fd[2], const char *url,
+ 		else
+ 			target_host = xstrdup(hostandport);
+ 
++		transport_check_allowed("git");
++
+ 		/* These underlying connection commands die() if they
+ 		 * cannot connect.
+ 		 */
+@@ -727,6 +730,7 @@ struct child_process *git_connect(int fd[2], const char *url,
+ 			int putty, tortoiseplink = 0;
+ 			char *ssh_host = hostandport;
+ 			const char *port = NULL;
++			transport_check_allowed("ssh");
+ 			get_host_and_port(&ssh_host, &port);
+ 
+ 			if (!port)
+@@ -781,6 +785,7 @@ struct child_process *git_connect(int fd[2], const char *url,
+ 			/* remove repo-local variables from the environment */
+ 			conn->env = local_repo_env;
+ 			conn->use_shell = 1;
++			transport_check_allowed("file");
+ 		}
+ 		argv_array_push(&conn->args, cmd.buf);
+ 
+diff --git a/transport-helper.c b/transport-helper.c
+index 5d99a6b..b486441 100644
+--- a/transport-helper.c
++++ b/transport-helper.c
+@@ -1039,6 +1039,8 @@ int transport_helper_init(struct transport *transport, const char *name)
+ 	struct helper_data *data = xcalloc(1, sizeof(*data));
+ 	data->name = name;
+ 
++	transport_check_allowed(name);
++
+ 	if (getenv("GIT_TRANSPORT_HELPER_DEBUG"))
+ 		debug = 1;
+ 
+diff --git a/transport.c b/transport.c
+index 40692f8..ad1ae7f 100644
+--- a/transport.c
++++ b/transport.c
+@@ -912,6 +912,20 @@ static int external_specification_len(const char *url)
+ 	return strchr(url, ':') - url;
+ }
+ 
++void transport_check_allowed(const char *type)
++{
++	struct string_list allowed = STRING_LIST_INIT_DUP;
++	const char *v = getenv("GIT_ALLOW_PROTOCOL");
++
++	if (!v)
++		return;
++
++	string_list_split(&allowed, v, ':', -1);
++	if (!unsorted_string_list_has_string(&allowed, type))
++		die("transport '%s' not allowed", type);
++	string_list_clear(&allowed, 0);
++}
++
+ struct transport *transport_get(struct remote *remote, const char *url)
+ {
+ 	const char *helper;
+@@ -943,12 +957,14 @@ struct transport *transport_get(struct remote *remote, const char *url)
+ 	if (helper) {
+ 		transport_helper_init(ret, helper);
+ 	} else if (starts_with(url, "rsync:")) {
++		transport_check_allowed("rsync");
+ 		ret->get_refs_list = get_refs_via_rsync;
+ 		ret->fetch = fetch_objs_via_rsync;
+ 		ret->push = rsync_transport_push;
+ 		ret->smart_options = NULL;
+ 	} else if (url_is_local_not_ssh(url) && is_file(url) && is_bundle(url, 1)) {
+ 		struct bundle_transport_data *data = xcalloc(1, sizeof(*data));
++		transport_check_allowed("file");
+ 		ret->data = data;
+ 		ret->get_refs_list = get_refs_from_bundle;
+ 		ret->fetch = fetch_refs_from_bundle;
+@@ -960,7 +976,10 @@ struct transport *transport_get(struct remote *remote, const char *url)
+ 		|| starts_with(url, "ssh://")
+ 		|| starts_with(url, "git+ssh://")
+ 		|| starts_with(url, "ssh+git://")) {
+-		/* These are builtin smart transports. */
++		/*
++		 * These are builtin smart transports; "allowed" transports
++		 * will be checked individually in git_connect.
++		 */
+ 		struct git_transport_data *data = xcalloc(1, sizeof(*data));
+ 		ret->data = data;
+ 		ret->set_option = NULL;
+diff --git a/transport.h b/transport.h
+index 18d2cf8..742027f 100644
+--- a/transport.h
++++ b/transport.h
+@@ -133,6 +133,13 @@ struct transport {
+ /* Returns a transport suitable for the url */
+ struct transport *transport_get(struct remote *, const char *);
+ 
++/*
++ * Check whether a transport is allowed by the environment,
++ * and die otherwise. type should generally be the URL scheme,
++ * as described in Documentation/git.txt
++ */
++void transport_check_allowed(const char *type);
++
+ /* Transport options which apply to git:// and scp-style URLs */
+ 
+ /* The program to use on the remote side to send a pack */
+-- 
+2.1.0
+
