@@ -45,7 +45,6 @@
 %global use_systemd         0
 %endif
 
-
 %{?scl:
 %filter_from_provides s|perl.*Git.*||g;s|perl.*SVN.*||g;
 %filter_from_requires s|perl.*Git.*||g;s|perl.*SVN.*||g;s|perl(packed-refs)||;s|perl(YAML::Any)||g;
@@ -60,12 +59,9 @@
 %define git_sysconfdit %{_sysconfdir}
 %endif
 
-
-
-
 Name:           %{?scl_prefix}git
-Version:        2.5.0
-Release:        4.4%{?dist}
+Version:        2.5.5
+Release:        1.1%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
@@ -94,13 +90,6 @@ Patch3:         git-1.7-el5-emacs-support.patch
 # could be removed when update/branch of Michael will be merged in upstream
 Patch4:         git-infinite-loop.patch
 
-# set of patches for security bug (solved since 2.6.1)
-Patch5:         0001-transport-add-a-protocol-whitelist-environment-varia.patch
-Patch6:         0002-submodule-allow-only-certain-protocols-for-submodule.patch
-Patch7:         0003-transport-refactor-protocol-whitelist-code.patch
-Patch8:         0004-http-limit-redirection-to-protocol-whitelist.patch
-Patch9:         0005-http-limit-redirection-depth.patch
-
 # solved since 2.7.0
 Patch10:        git-sendemail-big.patch
 
@@ -122,7 +111,7 @@ BuildRequires:  pcre-devel
 BuildRequires:  openssl-devel
 BuildRequires:  zlib-devel >= 1.2
 %if 0%{?rhel} >= 7 || 0%{?fedora} >= 19
-BuildRequires:  bash-completion
+BuildRequires:  pkgconfig(bash-completion)
 %endif
 %if %{use_systemd}
 # For macros
@@ -381,11 +370,6 @@ Requires:       %{?scl_prefix}emacs-git = %{version}-%{release}
 %patch3 -p1
 %endif
 %patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
-%patch8 -p1
-%patch9 -p1
 %patch10 -p1
 
 %if %{use_prebuilt_docs}
@@ -486,7 +470,6 @@ for elc in %{buildroot}%{elispdir}/*.elc ; do
     install -pm 644 contrib/emacs/$(basename $elc .elc).el \
     %{buildroot}%{elispdir}
 done
-
 install -Dpm 644 %{SOURCE2} \
     %{buildroot}%{?_scl_root}%{_emacs_sitestartdir}/git-init.el
 
@@ -505,7 +488,7 @@ make -C contrib/subtree install-doc
 # it's already part of git-core-doc and it's alone here
 rm -f %{buildroot}%{_docdir}/%{pkg_name}-%{version}/git-subtree.html
 
-mkdir -p %{buildroot}/%{_sysconfdir}/httpd/conf.d
+mkdir -p %{buildroot}%{_sysconfdir}/httpd/conf.d
 install -pm 0644 %{SOURCE4} %{buildroot}%{_sysconfdir}/httpd/conf.d/git.conf
 sed "s|@PROJECTROOT@|%{_var}/lib/git|g" \
     %{SOURCE6} > %{buildroot}%{_sysconfdir}/gitweb.conf
@@ -548,7 +531,6 @@ install -p -c -m 644 %{SOURCE12} %{buildroot}%{_unitdir}/git@.service
 install -p -c -m 644 %{SOURCE13} %{buildroot}%{_unitdir}/git.socket
 %endif
 
-
 %else
 
 mkdir -p %{buildroot}%{git_sysconfdir}/xinetd.d
@@ -556,6 +538,7 @@ mkdir -p %{buildroot}%{git_sysconfdir}/xinetd.d
 %if %{?scl:1}0
 install -p -c -m 755 %{SOURCE114} %{buildroot}%{git_sysconfdir}/xinetd.d/git25-git
 %else
+
 # On EL <= 5, xinetd does not enable IPv6 by default
 enable_ipv6="        # xinetd does not enable IPv6 by default
         flags           = IPv6"
@@ -610,7 +593,6 @@ chmod a-x Documentation/technical/api-index.sh
 find contrib -type f | xargs chmod -x
 
 # Split core files
-
 not_core_re="git-(add--interactive|am|difftool|instaweb|relink|request-pull|send-mail|submodule)|gitweb|prepare-commit-msg|pre-rebase"
 grep -vE "$not_core_re|\/man\/" bin-man-doc-files > bin-files-core
 grep -vE "$not_core_re" bin-man-doc-files | grep "\/man\/" > man-doc-files-core
@@ -641,6 +623,7 @@ rm -rf %{buildroot}
 %else
 %systemd_postun_with_restart git@.service
 %endif
+
 %endif
 
 %files -f bin-man-doc-git-files
@@ -780,8 +763,12 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
-* Fri Mar 04 2016 Jaroslaw Polok <jaroslaw.polok@cern.ch> - 2.5.0-4.4
+* Mon Mar 21 2016 Jaroslaw Polok <jaroslaw.polok@cern.ch> - 2.5.5-1.1
 - repackage as Software Collection for CentOS 6/7
+
+* Thu Mar 17 2016 David Woodhouse <dwmw2@infradead.org> - 2.5.5-1
+- Update to 2.5.5 (for CVE-2016-2315, CVE-2016-2324)
+  Resolves: #1318220
 
 * Sun Dec 27 2015 Petr Stodulka <pstodulk@redhat.com> - 2.5.0-4
 - fix send emails with patches bigger then 16kB
