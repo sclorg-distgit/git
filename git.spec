@@ -53,7 +53,7 @@
 
 Name:           %{?scl_prefix}git
 Version:        1.9.4
-Release:        3%{?dist}
+Release:        4%{?dist}.1
 Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
@@ -73,8 +73,19 @@ Patch0:         git-1.5-gitweb-home-link.patch
 Patch1:         git-cvsimport-Ignore-cvsps-2.2b1-Branches-output.patch
 # https://bugzilla.redhat.com/600411
 Patch3:         git-1.7-el5-emacs-support.patch
-Patch5:         0001-git-subtree-Use-gitexecdir-instead-of-libexecdir.patch
-Patch6:         git-1.9.4-cve9390.patch
+Patch4:         0001-git-subtree-Use-gitexecdir-instead-of-libexecdir.patch
+
+Patch5:         git-1.9.4-cve9390.patch
+
+# whole set is for https://bugzilla.redhat.com/show_bug.cgi?id=1273889
+Patch6:         0001-submodule-allow-only-certain-protocols-for-submodule.patch
+Patch7:         0002-transport-add-a-protocol-whitelist-environment-varia.patch
+Patch8:         0003-transport-refactor-protocol-whitelist-code.patch
+Patch9:         0004-http-limit-redirection-to-protocol-whitelist.patch
+Patch10:         0005-http-limit-redirection-depth.patch
+
+# CVE
+Patch11:        0001-Fix-CVE-2016-2315-CVE-2016-2324.patch
 
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
@@ -276,8 +287,14 @@ Requires:       %{?scl_prefix}emacs-git = %{version}-%{release}
 %if %{emacs_old}
 %patch3 -p1
 %endif
+%patch4 -p1
 %patch5 -p1
 %patch6 -p1
+%patch7 -p1
+%patch8 -p1
+%patch9 -p1
+%patch10 -p1
+%patch11 -p1
 
 %if %{use_prebuilt_docs}
 mkdir -p prebuilt_docs/{html,man}
@@ -584,6 +601,14 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
+* Fri Mar 18 2016 Petr Stodulka <pstodulk@redhat.com> - 1.9.4-4.1
+- fix heap overflow CVE-2016-2315 CVE-2016-2324
+  Resolves: #1318256
+
+* Fri Oct 23 2015 Petr Stodulka <pstodulk@redhat.com> - 1.9.4-4
+- fix arbitrary code execution via crafted URLs
+  Resolves: #1273890
+
 * Wed Jul 01 2015 Petr Stodulka <pstodulk@redhat.com> - 1.9.4-3
 - fix CVE-2014-9390
   Resolves: rhbz#1220552
