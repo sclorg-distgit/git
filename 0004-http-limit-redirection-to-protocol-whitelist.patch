@@ -1,0 +1,77 @@
+From 7737ed5e987dca764d15787d9a7e614989c54ceb Mon Sep 17 00:00:00 2001
+From: Petr Stodulka <pstodulk@redhat.com>
+Date: Fri, 23 Oct 2015 17:36:57 +0200
+Subject: [PATCH 4/5] http-limit-redirection-to-protocol-whitelist
+
+Previously, libcurl would follow redirection to any protocol
+it was compiled for support with. This is desirable to allow
+redirection from HTTP to HTTPS. However, it would even
+successfully allow redirection from HTTP to SFTP, a protocol
+that git does not otherwise support at all. Furthermore
+git's new protocol-whitelisting could be bypassed by
+following a redirect within the remote helper, as it was
+only enforced at transport selection time.
+
+This patch limits redirects within libcurl to HTTP, HTTPS,
+FTP and FTPS. If there is a protocol-whitelist present, this
+list is limited to those also allowed by the whitelist. As
+redirection happens from within libcurl, it is impossible
+for an HTTP redirect to a protocol implemented within
+another remote helper.
+
+When the curl version git was compiled with is too old to
+support restrictions on protocol redirection, we warn the
+user if GIT_ALLOW_PROTOCOL restrictions were requested. This
+is a little inaccurate, as even without that variable in the
+environment, we would still restrict SFTP, etc, and we do
+not warn in that case. But anything else means we would
+literally warn every time git accesses an http remote.
+---
+ http.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/http.c b/http.c
+index 70eaa26..7b72f7c 100644
+--- a/http.c
++++ b/http.c
+@@ -7,6 +7,7 @@
+ #include "credential.h"
+ #include "version.h"
+ #include "pkt-line.h"
++#include "transport.h"
+ 
+ int active_requests;
+ int http_is_verbose;
+@@ -299,6 +300,7 @@ static void set_curl_keepalive(CURL *c)
+ static CURL *get_curl_handle(void)
+ {
+ 	CURL *result = curl_easy_init();
++	long allowed_protocols = 0;
+ 
+ 	if (!curl_ssl_verify) {
+ 		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
+@@ -348,6 +350,21 @@ static CURL *get_curl_handle(void)
+ #elif LIBCURL_VERSION_NUM >= 0x071101
+ 	curl_easy_setopt(result, CURLOPT_POST301, 1);
+ #endif
++#if LIBCURL_VERSION_NUM >= 0x071304
++	if (is_transport_allowed("http"))
++		allowed_protocols |= CURLPROTO_HTTP;
++	if (is_transport_allowed("https"))
++		allowed_protocols |= CURLPROTO_HTTPS;
++	if (is_transport_allowed("ftp"))
++		allowed_protocols |= CURLPROTO_FTP;
++	if (is_transport_allowed("ftps"))
++		allowed_protocols |= CURLPROTO_FTPS;
++	curl_easy_setopt(result, CURLOPT_REDIR_PROTOCOLS, allowed_protocols);
++#else
++	if (transport_restrict_protocols())
++		warning("protocol restrictions not applied to curl redirects because\n"
++			"your curl version is too old (>= 7.19.4)");
++#endif
+ 
+ 	if (getenv("GIT_CURL_VERBOSE"))
+ 		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
+-- 
+2.1.0
+
