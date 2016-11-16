@@ -57,7 +57,7 @@
 
 Name:           %{?scl_prefix}git
 Version:        2.9.2
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
@@ -312,7 +312,7 @@ BuildArch:      noarch
 %endif
 Requires:       %{?scl_prefix}git = %{version}-%{release}, tk >= 8.4
 #FIXME: fitk? gui? should we package that?
-Requires:       gitk = %{version}-%{release}
+Requires:       %{?scl_prefix}gitk = %{version}-%{release}
 
 %description gui
 Git GUI tool.
@@ -805,6 +805,9 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
+* Wed Jul 20 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.2-2
+- Fix Requires of %{scl_prefix}git-gui for %{scl_prefix}gitk
+
 * Wed Jul 20 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.2-1
 - Initial commit with git v2.9.2
 - Fixes troubles with infinite loop in "git ls-tree" for broken symlink
