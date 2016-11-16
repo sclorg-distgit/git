@@ -4,5 +4,5 @@ Documentation=man:git-daemon(1)
 
 [Service]
 User=nobody
-ExecStart=-/usr/libexec/git-core/git-daemon --base-path=/var/lib/git --export-all --user-path=public_git --syslog --inetd --verbose
+ExecStart=-/usr/bin/scl enable rh-git29 -- /opt/rh/rh-git29/root/usr/libexec/git-core/git-daemon --base-path=/var/opt/rh/rh-git29/lib/git --export-all --user-path=public_git --syslog --inetd --verbose
 StandardInput=socket

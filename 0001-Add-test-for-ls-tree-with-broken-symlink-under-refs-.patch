@@ -1,0 +1,33 @@
+From 45eb1ba86022558d71a9946ccbe173ba5d8f1e37 Mon Sep 17 00:00:00 2001
+From: Petr Stodulka <pstodulk@redhat.com>
+Date: Thu, 13 Oct 2016 13:23:47 +0200
+Subject: [PATCH 1/2] Add test for ls-tree with broken symlink under refs/heads
+
+git ls-tree goes into an infinite loop while serving pretty vanilla requests,
+if the refs/heads/ directory contains a symlink that's broken. Added test
+which check if git ends with expected exit code or timeout expires.
+---
+ t/t3103-ls-tree-misc.sh | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/t/t3103-ls-tree-misc.sh b/t/t3103-ls-tree-misc.sh
+index 09dcf04..faf79c4 100755
+--- a/t/t3103-ls-tree-misc.sh
++++ b/t/t3103-ls-tree-misc.sh
+@@ -21,4 +21,13 @@ test_expect_success 'ls-tree fails with non-zero exit code on broken tree' '
+ 	test_must_fail git ls-tree -r HEAD
+ '
+ 
++test_expect_success 'ls-tree fails due to broken symlink instead of infinite loop' '
++	mkdir foo_infinit &&
++	cd foo_infinit &&
++	git init testrepo &&
++	cd testrepo &&
++	mkdir -p .git/refs/remotes &&
++	ln -s ../remotes/foo .git/refs/heads/bar &&
++	test_expect_code 128 timeout 2 git ls-tree bar
++'
+ test_done
+-- 
+2.5.5
+

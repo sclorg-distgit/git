@@ -2,6 +2,15 @@
 %{!?scl:%global pkg_name %{name}}
 # Pass --without docs to rpmbuild if you don't want the documentation
 
+%if 0%{?scl:1}
+%global httpdconfdir /opt/rh/httpd24/root/etc/httpd/conf.d
+%global appdesktopdir %{_root_datadir}/applications
+%global cpath_dir     /opt/rh/%{scl_httpd}/root%{_root_includedir}
+%else
+%global appdesktopdir %{_datadir}/applications
+%global httpdconfdir %{_sysconfdir}/httpd/conf.d
+%endif
+
 # Settings for EL-5
 # - Leave git-* binaries in %{_bindir}
 # - Don't use noarch subpackages
@@ -23,7 +32,7 @@
 %else
 %global gitcoredir          %{_libexecdir}/git-core
 %global noarch_sub          1
-%global libcurl_devel       libcurl-devel
+%global libcurl_devel       %{?scl_prefix_httpd}libcurl-devel
 %global emacs_old           0
 %global docbook_suppress_sp 0
 %global enable_ipv6         0
@@ -36,7 +45,6 @@
 %global bashcomp_pkgconfig  1
 %global bashcompdir         %{_scl_root}%(pkg-config --variable=completionsdir bash-completion 2>/dev/null)
 %global bashcomproot        %(dirname %{bashcompdir} 2>/dev/null)
-%global desktop_vendor_tag  0
 %global gnome_keyring       1
 %global use_new_rpm_filters 1
 %global use_systemd         1
@@ -44,10 +52,16 @@
 %global bashcomp_pkgconfig  0
 %global bashcompdir         %{_sysconfdir}/bash_completion.d
 %global bashcomproot        %{bashcompdir}
-%global desktop_vendor_tag  1
 %global gnome_keyring       0
 %global use_new_rpm_filters 0
 %global use_systemd         0
+%endif
+
+# This one macro is for F19+ and EL-6+
+%if 0%{?fedora} >= 19 || 0%{?rhel} >= 6
+%global desktop_vendor_tag  0
+%else
+%global desktop_vendor_tag  1
 %endif
 
 # Settings for EL <= 7
@@ -56,8 +70,8 @@
 %endif
 
 Name:           %{?scl_prefix}git
-Version:        2.9.2
-Release:        3%{?dist}
+Version:        2.9.3
+Release:        2%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
@@ -93,6 +107,13 @@ Patch0:         git-1.5-gitweb-home-link.patch
 Patch1:         git-cvsimport-Ignore-cvsps-2.2b1-Branches-output.patch
 # https://bugzilla.redhat.com/600411
 Patch3:         git-1.7-el5-emacs-support.patch
+
+# fix HTTP(S)-SSO (#1359176)
+Patch4:         0001-http-control-GSSAPI-credential-delegation.patch
+
+# fix infinite loop + test
+Patch5:         0001-Add-test-for-ls-tree-with-broken-symlink-under-refs-.patch
+Patch6:         0002-resolve_ref_unsafe-limit-the-number-of-stat_ref-retr.patch
 
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
@@ -198,6 +219,7 @@ Requires:       less
 Requires:       openssh-clients
 Requires:       rsync
 Requires:       zlib >= 1.2
+Requires:       %{?scl_prefix_httpd}libcurl
 
 %description core
 Git is a fast, scalable, distributed revision control system with an
@@ -311,7 +333,6 @@ Group:          Development/Tools
 BuildArch:      noarch
 %endif
 Requires:       %{?scl_prefix}git = %{version}-%{release}, tk >= 8.4
-#FIXME: fitk? gui? should we package that?
 Requires:       %{?scl_prefix}gitk = %{version}-%{release}
 
 %description gui
@@ -430,6 +451,9 @@ rm -rf "$gpghome" # Cleanup tmp gpg home dir
 %if %{emacs_old}
 %patch3 -p1
 %endif
+%patch4 -p1
+%patch5 -p1
+%patch6 -p1
 
 %if %{use_prebuilt_docs}
 mkdir -p prebuilt_docs/{html,man}
@@ -496,6 +520,9 @@ echo DOCBOOK_SUPPRESS_SP = 1 >> config.mak
 %endif
 
 %build
+%{?scl:scl enable %{scl_httpd} - << "EOF"}
+set -ex
+export CPATH="%{cpath_dir}:${CPATH}"
 make %{?_smp_mflags} all
 %if ! %{use_prebuilt_docs} && ! 0%{?_without_docs}
 make %{?_smp_mflags} doc
@@ -512,9 +539,15 @@ make -C contrib/subtree/
 
 # Remove shebang from bash-completion script
 sed -i '/^#!bash/,+1 d' contrib/completion/git-completion.bash
+%{?scl:EOF}
+
 
 %install
 rm -rf %{buildroot}
+
+%{?scl:scl enable %{scl_httpd} - << "EOF"}
+set -ex
+export CPATH="%{cpath_dir}:${CPATH}"
 make %{?_smp_mflags} INSTALLDIRS=vendor install
 %if ! %{use_prebuilt_docs} && ! 0%{?_without_docs}
 make %{?_smp_mflags} INSTALLDIRS=vendor install-doc
@@ -522,6 +555,8 @@ make %{?_smp_mflags} INSTALLDIRS=vendor install-doc
 cp -a prebuilt_docs/man/* %{buildroot}%{_mandir}
 cp -a prebuilt_docs/html/* Documentation/
 %endif
+%{?scl:EOF}
+
 
 %if %{emacs_old}
 %global _emacs_sitelispdir %{_datadir}/emacs/site-lisp
@@ -559,8 +594,9 @@ make -C contrib/subtree install-doc
 # it's already part of git-core-doc and it's alone here
 rm -f %{buildroot}%{?_pkgdocdir}%{!?_pkgdocdir:%{_docdir}/%{name}-%{version}}/git-subtree.html
 
-mkdir -p %{buildroot}%{_sysconfdir}/httpd/conf.d
-install -pm 0644 %{SOURCE12} %{buildroot}%{_sysconfdir}/httpd/conf.d/git.conf
+mkdir -p %{buildroot}%{httpdconfdir}
+mkdir -p %{buildroot}%{_sysconfdir}
+install -pm 0644 %{SOURCE12} %{buildroot}%{httpdconfdir}/%{?scl_prefix}git.conf
 sed "s|@PROJECTROOT@|%{_localstatedir}/lib/git|g" \
     %{SOURCE14} > %{buildroot}%{_sysconfdir}/gitweb.conf
 
@@ -571,7 +607,7 @@ find %{buildroot} -type f -name perllocal.pod -exec rm -f {} ';'
 #FIXME:
 # Remove remote-helper python libraries and scripts, these are not ready for
 # use yet
-rm -rf %{buildroot}%{_scl_root}%{python_sitelib} %{buildroot}%{_scl_root}%{gitcoredir}/git-remote-testgit
+rm -rf %{buildroot}%{_scl_root}%{python_sitelib} %{buildroot}%{gitcoredir}/git-remote-testgit
 
 # git-archimport is not supported
 find %{buildroot} Documentation -type f -name 'git-archimport*' -exec rm -f {} ';'
@@ -597,7 +633,7 @@ mkdir -p %{buildroot}%{_unitdir}
 cp -a %{SOURCE15} %{buildroot}%{_unitdir}/%{scl_prefix}git@.service
 cp -a %{SOURCE16} %{buildroot}%{_unitdir}/%{scl_prefix}git.socket
 %else
-mkdir -p %{buildroot}%{_sysconfdir}/xinetd.d
+mkdir -p %{buildroot}%{_root_sysconfdir}/xinetd.d
 # On EL <= 5, xinetd does not enable IPv6 by default
 enable_ipv6="        # xinetd does not enable IPv6 by default
         flags           = IPv6"
@@ -607,7 +643,7 @@ perl -p \
 %if %{enable_ipv6}
     -e "s|^}|$enable_ipv6\n$&|;" \
 %endif
-    %{SOURCE11} > %{buildroot}%{_sysconfdir}/xinetd.d/git
+    %{SOURCE11} > %{buildroot}%{_root_sysconfdir}/xinetd.d/%{scl_prefix}git
 %endif
 
 # Setup bash completion
@@ -633,11 +669,13 @@ install -pm 644 contrib/completion/git-prompt.sh \
     %{buildroot}%{_datadir}/git-core/contrib/completion/
 
 # install git-gui .desktop file
+cp %{SOURCE13} %{?scl_prefix}git-gui.desktop
 desktop-file-install \
 %if %{desktop_vendor_tag}
   --vendor fedora \
 %endif
-  --dir=%{buildroot}%{_datadir}/applications %{SOURCE13}
+  --delete-original \
+  --dir=%{buildroot}%{appdesktopdir} %{?scl_prefix}git-gui.desktop
 
 # find translations
 %find_lang %{pkg_name} %{pkg_name}.lang
@@ -658,6 +696,27 @@ grep -vE "$not_core_re|\/man\/" bin-man-doc-files > bin-files-core
 grep -vE "$not_core_re" bin-man-doc-files | grep "\/man\/" > man-doc-files-core
 grep -E "$not_core_re" bin-man-doc-files > bin-man-doc-git-files
 
+%check
+# check source files with hardcoded content - it's more for reminder
+# when new collection will be added in future
+%if 0%{?scl:1}
+  # scl enable is required to use
+  grep -q "^Exec=/usr/bin/scl enable %{scl}" %{buildroot}%{appdesktopdir}/*git-gui.desktop
+  %if 0%{?use_systemd}
+    grep -q "^ExecStart=-/usr/bin/scl enable %{scl}" %{buildroot}%{_unitdir}/%{scl_prefix}git@.service
+  %endif
+
+  # and should be used correct paths - check at least that rh-gitXX is in path
+  grep -q "^Icon.*%{scl}" %{buildroot}%{appdesktopdir}/*git-gui.desktop
+  grep "%{_localstatedir}/www/git" %{buildroot}%{httpdconfdir}/%{?scl_prefix}git.conf
+  %if 0%{?use_systemd}
+    grep -qe "-- .*%{scl}" %{buildroot}%{_unitdir}/%{scl_prefix}git@.service
+  %endif
+
+  # check Name/GenericName that contains rh-GitXX (with current XX, e.g. 29)
+  grep -qi "^Name=%{scl}" %{buildroot}%{appdesktopdir}/*git-gui.desktop
+  grep -qi "^GenericName=%{scl}" %{buildroot}%{appdesktopdir}/*git-gui.desktop
+%endif
 
 %clean
 rm -rf %{buildroot}
@@ -742,7 +801,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 %{gitcoredir}/git-gui*
 %{gitcoredir}/git-citool
-%{_datadir}/applications/*git-gui.desktop
+%{appdesktopdir}/*git-gui.desktop
 %{_datadir}/git-gui/
 %{!?_without_docs: %{_mandir}/man1/git-gui.1*}
 %{!?_without_docs: %doc Documentation/git-gui.html}
@@ -786,7 +845,7 @@ rm -rf %{buildroot}
 %{_unitdir}/%{scl_prefix}git.socket
 %{_unitdir}/%{scl_prefix}git@.service
 %else
-%config(noreplace)%{_sysconfdir}/xinetd.d/git
+%config(noreplace)%{_root_sysconfdir}/xinetd.d/%{scl_prefix}git
 %endif
 %{gitcoredir}/git-daemon
 %{_localstatedir}/lib/git
@@ -797,7 +856,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 %doc gitweb/INSTALL gitweb/README
 %config(noreplace)%{_sysconfdir}/gitweb.conf
-%config(noreplace)%{_sysconfdir}/httpd/conf.d/git.conf
+%config(noreplace)%{httpdconfdir}/%{?scl_prefix}git.conf
 %{_localstatedir}/www/git/
 
 
@@ -805,7 +864,34 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
-* Fri Jul 20 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.2-3
+* Fri Oct 14 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.3-2
+- fix infinite loop of "git ls-tree" on broken symlink
+  Resolves: #1204191
+
+* Mon Oct 10 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.3-1
+- Rebase to 2.9.3
+- add control of GSSAPI credential delegation to enable HTTP(S)-SSO
+  authentication
+  Resolves: #1359176 #1382708
+
+* Mon Aug 08 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.2-5
+- fix service file to use rh-git29 instead of native git
+- fix desktop file - changed names & paths inside the file,
+    use scl rh-git29 instead of native git, change filename
+    and path of the file to system directory instead of scl
+- *git-daemon: xinetd.d: use system directory and added prefix to the filename
+- *git-gitweb: store git.conf to directory of httpd24 sclm add scl prefix
+    to the filename and correct paths inside the file to correct rh-git29
+    www directory
+- fix doubled path for emacs-sitelisp files
+- build and link files with httpd24-libcurl
+  Resolves: #1345897
+
+* Fri Aug 05 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.2-4
+- fix deprecated "vendor" tag for RHEL-6 (it was used for older
+  RHEL systems)
+
+* Fri Jul 22 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.2-3
 - remove requires on perl(packed-refs) for RHEL-6 builds instead
   of provides
 
