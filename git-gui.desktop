@@ -1,9 +1,9 @@
 [Desktop Entry]
-Name=Git GUI
-GenericName=Git GUI
+Name=rh-Git29 GUI
+GenericName=rh-Git29 GUI
 Comment=A graphical interface to Git
-Exec=git gui
-Icon=/usr/share/git-gui/lib/git-gui.ico
+Exec=/usr/bin/scl enable rh-git29 -- git gui
+Icon=/opt/rh/rh-git29/root/usr/share/git-gui/lib/git-gui.ico
 Terminal=false
 Type=Application
 Categories=Development;
