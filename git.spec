@@ -57,7 +57,7 @@
 
 Name:           %{?scl_prefix}git
 Version:        2.9.2
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
@@ -489,7 +489,7 @@ echo DOCBOOK_SUPPRESS_SP = 1 >> config.mak
 %{?filter_yaml_any:%filter_from_provides /perl(YAML::Any)/d}
 %{?scl:%filter_from_provides /^perl(Git.*)/d}
 %{?scl:%filter_from_requires /^perl(Git.*)/d}
-%filter_from_provides /perl(packed-refs)/d
+%filter_from_requires /perl(packed-refs)/d
 %filter_setup
 }
 
@@ -805,6 +805,10 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
+* Fri Jul 20 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.2-3
+- remove requires on perl(packed-refs) for RHEL-6 builds instead
+  of provides
+
 * Wed Jul 20 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.2-2
 - Fix Requires of %{scl_prefix}git-gui for %{scl_prefix}gitk
 
