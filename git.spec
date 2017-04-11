@@ -92,12 +92,12 @@ Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
 URL:            https://git-scm.com/
-Source0:        https://www.kernel.org/pub/software/scm/git/%{name}-%{version}.tar.xz
-Source1:        https://www.kernel.org/pub/software/scm/git/%{name}-htmldocs-%{version}.tar.xz
-Source2:        https://www.kernel.org/pub/software/scm/git/%{name}-manpages-%{version}.tar.xz
-Source3:        https://www.kernel.org/pub/software/scm/git/%{name}-%{version}.tar.sign
-Source4:        https://www.kernel.org/pub/software/scm/git/%{name}-htmldocs-%{version}.tar.sign
-Source5:        https://www.kernel.org/pub/software/scm/git/%{name}-manpages-%{version}.tar.sign
+Source0:        https://www.kernel.org/pub/software/scm/git/%{pkg_name}-%{version}.tar.xz
+Source1:        https://www.kernel.org/pub/software/scm/git/%{pkg_name}-htmldocs-%{version}.tar.xz
+Source2:        https://www.kernel.org/pub/software/scm/git/%{pkg_name}-manpages-%{version}.tar.xz
+Source3:        https://www.kernel.org/pub/software/scm/git/%{pkg_name}-%{version}.tar.sign
+Source4:        https://www.kernel.org/pub/software/scm/git/%{pkg_name}-htmldocs-%{version}.tar.sign
+Source5:        https://www.kernel.org/pub/software/scm/git/%{pkg_name}-manpages-%{version}.tar.sign
 
 # Junio C Hamano's key is used to sign git releases, it can be found in the
 # junio-gpg-pub tag within git.
@@ -365,7 +365,7 @@ BuildRequires:  perl(Error), perl(ExtUtils::MakeMaker)
 Requires:       perl(Error)
 Requires:       perl(:MODULE_COMPAT_%(eval "`%{__perl} -V:version`"; echo $version))
 
-%description -n perl-Git
+%description -n %{?scl_prefix}perl-Git
 Perl interface to Git.
 
 %package -n %{?scl_prefix}perl-Git-SVN
@@ -418,7 +418,8 @@ Requires:       gnome-keyring
 %endif
 
 
-%prep
+%prep 
+
 # Verify GPG signatures
 gpghome="$(mktemp -qd)" # Ensure we don't use any existing gpg keyrings
 key="%{SOURCE9}"
@@ -434,7 +435,7 @@ for src in %{SOURCE0} %{SOURCE1} %{SOURCE2}; do
 done
 rm -rf "$gpghome" # Cleanup tmp gpg home dir
 
-%setup -q
+%setup -q -n %{pkg_name}-%{version}
 %patch0 -p1
 %patch1 -p1
 %if %{emacs_old}
@@ -822,7 +823,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 %doc Documentation/*daemon*.txt
 %if %{use_systemd}
-if %{?scl:1}0
+%if %{?scl:1}0
 %{?_scl_root}/usr/sbin/git-daemon-scl-wrapper
 %{_unitdir}/git212-git.socket
 %{_unitdir}/git212-git@.service
