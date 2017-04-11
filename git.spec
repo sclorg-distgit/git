@@ -1,3 +1,6 @@
+%{?scl:%scl_package git}
+%{!?scl:%global pkg_name %{name}}
+
 # Pass --without docs to rpmbuild if you don't want the documentation
 
 # Settings for EL-5
@@ -68,7 +71,21 @@
 %{!?__global_ldflags: %global __global_ldflags -Wl,-z,relro}
 %endif
 
-Name:           git
+%{?scl:
+%filter_from_provides s|perl.*Git.*||g;s|perl.*SVN.*||g;
+%filter_from_requires s|perl.*Git.*||g;s|perl.*SVN.*||g;s|perl(packed-refs)||;s|perl(YAML::Any)||g;
+%filter_setup
+}
+
+
+%if %{?scl:1}0 && 0%{?rhel} <= 7
+# overloaded by SCL
+%define git_sysconfdir /etc
+%else
+%define git_sysconfdit %{_sysconfdir}
+%endif
+
+Name:           %{?scl_prefix}git
 Version:        2.12.2
 Release:        1%{?dist}
 Summary:        Fast Version Control System
@@ -96,11 +113,15 @@ Source9:        gpgkey-junio.asc
 # Local sources begin at 10 to allow for additional future upstream sources
 Source10:       git-init.el
 Source11:       git.xinetd.in
+Source111:      git212-git.xinetd.in
 Source12:       git.conf.httpd
 Source13:       git-gui.desktop
+Source113:      git-daemon-scl-wrapper
 Source14:       gitweb.conf.in
 Source15:       git@.service
+Source151:      git212-git@.service
 Source16:       git.socket
+Source161:      git212-git.socket
 Patch0:         git-1.8-gitweb-home-link.patch
 # https://bugzilla.redhat.com/490602
 Patch1:         git-cvsimport-Ignore-cvsps-2.2b1-Branches-output.patch
@@ -137,25 +158,31 @@ BuildRequires:  pkgconfig(bash-completion)
 BuildRequires:  systemd
 %endif
 
-Requires:       git-core = %{version}-%{release}
-Requires:       git-core-doc = %{version}-%{release}
+%{?scl:Requires:%scl_runtime}
+
+Requires:       %{?scl_prefix}git-core = %{version}-%{release}
+Requires:       %{?scl_prefix}git-core-doc = %{version}-%{release}
 Requires:       perl(Error)
 %if ! %{defined perl_bootstrap}
 Requires:       perl(Term::ReadKey)
 %endif
-Requires:       perl-Git = %{version}-%{release}
+Requires:       %{?scl_prefix}perl-Git = %{version}-%{release}
 
 %if 0%{?fedora} >= 16 || 0%{?rhel} >= 7
 Requires:       emacs-filesystem >= %{_emacs_version}
 # These can be removed in Fedora 26
+%if 0%{!?scl:1}
 Obsoletes:      emacs-git <= 2.4.5
 Obsoletes:      emacs-git-el <= 2.4.5
 Provides:       emacs-git = %{version}-%{release}
 Provides:       emacs-git-el = %{version}-%{release}
 %endif
+%endif
 
 # Obsolete git-arch
+%if 0%{!?scl:1}
 Obsoletes:      git-arch < %{version}-%{release}
+%endif
 
 %description
 Git is a fast, scalable, distributed revision control system with an
@@ -172,24 +199,26 @@ Group:          Development/Tools
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}
 %if %{gnome_keyring}
 Requires:       git-gnome-keyring = %{version}-%{release}
 %endif
-Requires:       git-cvs = %{version}-%{release}
-Requires:       git-email = %{version}-%{release}
-Requires:       git-gui = %{version}-%{release}
-Requires:       git-svn = %{version}-%{release}
-Requires:       git-p4 = %{version}-%{release}
-Requires:       gitk = %{version}-%{release}
-Requires:       perl-Git = %{version}-%{release}
+Requires:       %{?scl_prefix}git-cvs = %{version}-%{release}
+Requires:       %{?scl_prefix}git-email = %{version}-%{release}
+Requires:       %{?scl_prefix}git-gui = %{version}-%{release}
+Requires:       %{?scl_prefix}git-svn = %{version}-%{release}
+Requires:       %{?scl_prefix}git-p4 = %{version}-%{release}
+Requires:       %{?scl_prefix}gitk = %{version}-%{release}
+Requires:       %{?scl_prefix}perl-Git = %{version}-%{release}
 %if ! %{defined perl_bootstrap}
 Requires:       perl(Term::ReadKey)
 %endif
 %if 0%{?rhel} && 0%{?rhel} <= 6
-Requires:       emacs-git = %{version}-%{release}
+Requires:       %{?scl_prefix}emacs-git = %{version}-%{release}
 %endif
+%if 0%{!?scl:1}
 Obsoletes:      git <= 1.5.4.3
+%endif
 
 %description all
 Git is a fast, scalable, distributed revision control system with an
@@ -218,7 +247,7 @@ other SCMs, install the git-all meta-package.
 %package core-doc
 Summary:        Documentation files for git-core
 Group:          Development/Tools
-Requires:       git-core = %{version}-%{release}
+Requires:       %{?scl_prefix}git-core = %{version}-%{release}
 
 %description core-doc
 Documentation files for git-core package including man pages.
@@ -226,7 +255,7 @@ Documentation files for git-core package including man pages.
 %package daemon
 Summary:        Git protocol daemon
 Group:          Development/Tools
-Requires:       git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}
 %if %{use_systemd}
 Requires:       systemd
 Requires(post): systemd
@@ -238,15 +267,15 @@ Requires:       xinetd
 %description daemon
 The git daemon for supporting git:// access to git repositories
 
-%package -n gitweb
+%package -n %{?scl_prefix}gitweb
 Summary:        Simple web interface to git repositories
 Group:          Development/Tools
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}
 
-%description -n gitweb
+%description -n %{?scl_prefix}gitweb
 Simple web interface to track changes in git repositories
 
 %package p4
@@ -256,15 +285,17 @@ Group:          Development/Tools
 BuildArch:      noarch
 %endif
 BuildRequires:  python
-Requires:       git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}
 %description p4
 %{summary}.
 
 %package svn
 Summary:        Git tools for importing Subversion repositories
 Group:          Development/Tools
-Requires:       git = %{version}-%{release}, subversion
+Requires:       %{?scl_prefix}git = %{version}-%{release}, subversion
+%if %{?scl:1}0 && %{?rhel} >= 7
 Requires:       perl(Digest::MD5)
+%endif
 %if ! %{defined perl_bootstrap}
 Requires:       perl(Term::ReadKey)
 %endif
@@ -277,10 +308,15 @@ Group:          Development/Tools
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       git = %{version}-%{release}, cvs
+Requires:       %{?scl_prefix}git = %{version}-%{release}, cvs
 Requires:       cvsps
 Requires:       perl(DBD::SQLite)
+%if %{?scl:1}0
+Requires:       %{?scl_prefix}perl-Git
+%else
 Requires:       perl(Git)
+%endif
+
 %description cvs
 Git tools for importing CVS repositories.
 
@@ -290,7 +326,7 @@ Group:          Development/Tools
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       git = %{version}-%{release}, perl-Git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}, %{?scl_prefix}perl-Git = %{version}-%{release}
 Requires:       perl(Authen::SASL)
 Requires:       perl(Net::SMTP::SSL)
 Requires:       perl(Git)
@@ -303,28 +339,28 @@ Group:          Development/Tools
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       git = %{version}-%{release}, tk >= 8.4
-Requires:       gitk = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}, tk >= 8.4
+Requires:       %{?scl_prefix}gitk = %{version}-%{release}
 %description gui
 Git GUI tool.
 
-%package -n gitk
+%package -n %{?scl_prefix}gitk
 Summary:        Git revision tree visualiser
 Group:          Development/Tools
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       git = %{version}-%{release}, tk >= 8.4
-%description -n gitk
+Requires:       %{?scl_prefix}git = %{version}-%{release}, tk >= 8.4
+%description -n %{?scl_prefix}gitk
 Git revision tree visualiser.
 
-%package -n perl-Git
+%package -n %{?scl_prefix}perl-Git
 Summary:        Perl interface to Git
 Group:          Development/Libraries
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}
 BuildRequires:  perl(Error), perl(ExtUtils::MakeMaker)
 Requires:       perl(Error)
 Requires:       perl(:MODULE_COMPAT_%(eval "`%{__perl} -V:version`"; echo $version))
@@ -332,23 +368,23 @@ Requires:       perl(:MODULE_COMPAT_%(eval "`%{__perl} -V:version`"; echo $versi
 %description -n perl-Git
 Perl interface to Git.
 
-%package -n perl-Git-SVN
+%package -n %{?scl_prefix}perl-Git-SVN
 Summary:        Perl interface to Git::SVN
 Group:          Development/Libraries
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}
 Requires:       perl(:MODULE_COMPAT_%(eval "`%{__perl} -V:version`"; echo $version))
 
-%description -n perl-Git-SVN
+%description -n %{?scl_prefix}perl-Git-SVN
 Perl interface to Git.
 
 %if 0%{?rhel} && 0%{?rhel} <= 6
-%package -n emacs-git
+%package -n %{?scl_prefix}emacs-git
 Summary:        Git version control system support for Emacs
 Group:          Applications/Editors
-Requires:       git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}
 %if %{noarch_sub}
 BuildArch:      noarch
 Requires:       emacs(bin) >= %{_emacs_version}
@@ -356,18 +392,18 @@ Requires:       emacs(bin) >= %{_emacs_version}
 Requires:       emacs-common
 %endif
 
-%description -n emacs-git
+%description -n %{?scl_prefix}emacs-git
 %{summary}.
 
-%package -n emacs-git-el
+%package -n %{?scl_prefix}emacs-git-el
 Summary:        Elisp source files for git version control system support for Emacs
 Group:          Applications/Editors
 %if %{noarch_sub}
 BuildArch:      noarch
 %endif
-Requires:       emacs-git = %{version}-%{release}
+Requires:       %{?scl_prefix}emacs-git = %{version}-%{release}
 
-%description -n emacs-git-el
+%description -n %{?scl_prefix}emacs-git-el
 %{summary}.
 %endif
 
@@ -375,7 +411,7 @@ Requires:       emacs-git = %{version}-%{release}
 %package gnome-keyring
 Summary:        Git module for working with gnome-keyring
 BuildRequires:  libgnome-keyring-devel
-Requires:       git = %{version}-%{release}
+Requires:       %{?scl_prefix}git = %{version}-%{release}
 Requires:       gnome-keyring
 %description gnome-keyring
 %{summary}.
@@ -430,7 +466,7 @@ GITWEB_PROJECTROOT = %{_localstatedir}/lib/git
 GNU_ROFF = 1
 htmldir = %{?_pkgdocdir}%{!?_pkgdocdir:%{_docdir}/%{name}-%{version}}
 prefix = %{_prefix}
-gitwebdir = %{_localstatedir}/www/git
+gitwebdir = %{?_scl_root}%{_var}/www/git
 EOF
 
 %if "%{gitcoredir}" == "%{_bindir}"
@@ -498,10 +534,10 @@ cp -a prebuilt_docs/html/* Documentation/
 %endif
 
 %if %{emacs_old}
-%global _emacs_sitelispdir %{_datadir}/emacs/site-lisp
+%global _emacs_sitelispdir %{?_scl_root}%{_datadir}/emacs/site-lisp
 %global _emacs_sitestartdir %{_emacs_sitelispdir}/site-start.d
 %endif
-%global elispdir %{_emacs_sitelispdir}/git
+%global elispdir %{?_scl_root}%{_emacs_sitelispdir}/git
 make -C contrib/emacs install \
     emacsdir=%{buildroot}%{elispdir}
 for elc in %{buildroot}%{elispdir}/*.elc ; do
@@ -509,7 +545,7 @@ for elc in %{buildroot}%{elispdir}/*.elc ; do
     %{buildroot}%{elispdir}
 done
 install -Dpm 644 %{SOURCE10} \
-    %{buildroot}%{_emacs_sitestartdir}/git-init.el
+    %{buildroot}%{?_scl_root}%{_emacs_sitestartdir}/git-init.el
 
 %if %{gnome_keyring}
 install -pm 755 contrib/credential/gnome-keyring/git-credential-gnome-keyring \
@@ -539,9 +575,9 @@ install -pm 0644 %{SOURCE12} %{buildroot}%{_sysconfdir}/httpd/conf.d/git.conf
 sed "s|@PROJECTROOT@|%{_localstatedir}/lib/git|g" \
     %{SOURCE14} > %{buildroot}%{_sysconfdir}/gitweb.conf
 
-find %{buildroot} -type f -name .packlist -exec rm -f {} ';'
-find %{buildroot} -type f -name '*.bs' -empty -exec rm -f {} ';'
-find %{buildroot} -type f -name perllocal.pod -exec rm -f {} ';'
+find %{buildroot}%{?_scl_root} -type f -name .packlist -exec rm -f {} ';'
+find %{buildroot}%{?_scl_root} -type f -name '*.bs' -empty -exec rm -f {} ';'
+find %{buildroot}%{?_scl_root} -type f -name perllocal.pod -exec rm -f {} ';'
 
 # Clean up contrib/credential to avoid cruft in the git-core-doc docdir
 rm -rf contrib/credential
@@ -550,13 +586,13 @@ rm -rf contrib/credential
 rm -rf contrib/subtree/{INSTALL,Makefile,git-subtree{,.{1,sh,txt,xml}},t}
 
 # git-archimport is not supported
-find %{buildroot} Documentation -type f -name 'git-archimport*' -exec rm -f {} ';'
+find %{buildroot}%{?_scl_root} Documentation -type f -name 'git-archimport*' -exec rm -f {} ';'
 
 exclude_re="archimport|email|git-citool|git-cvs|git-daemon|git-gui|git-remote-bzr|git-remote-hg|gitk|p4|svn"
 (find %{buildroot}{%{_bindir},%{_libexecdir}} -type f | grep -vE "$exclude_re" | sed -e s@^%{buildroot}@@) > bin-man-doc-files
 (find %{buildroot}{%{_bindir},%{_libexecdir}} -mindepth 1 -type d | grep -vE "$exclude_re" | sed -e 's@^%{buildroot}@%dir @') >> bin-man-doc-files
-(find %{buildroot}%{perl_vendorlib} -type f | sed -e s@^%{buildroot}@@) > perl-git-files
-(find %{buildroot}%{perl_vendorlib} -mindepth 1 -type d | sed -e 's@^%{buildroot}@%dir @') >> perl-git-files
+(find %{buildroot}%{?_scl_root}%{perl_vendorlib} -type f | sed -e s@^%{buildroot}@@) > perl-git-files
+(find %{buildroot}%{?_scl_root}%{perl_vendorlib} -mindepth 1 -type d | sed -e 's@^%{buildroot}@%dir @') >> perl-git-files
 # Split out Git::SVN files
 grep Git/SVN perl-git-files > perl-git-svn-files
 sed -i "/Git\/SVN/ d" perl-git-files
@@ -566,12 +602,28 @@ sed -i "/Git\/SVN/ d" perl-git-files
 rm -rf %{buildroot}%{_mandir}
 %endif
 
-mkdir -p %{buildroot}%{_localstatedir}/lib/git
+mkdir -p %{buildroot}%{_var}/lib/git
 %if %{use_systemd}
 mkdir -p %{buildroot}%{_unitdir}
+
+%if %{?scl:1}0
+mkdir -p %{buildroot}%{?_scl_root}/usr/sbin/
+install -p -c -m 755 %{SOURCE113} %{buildroot}%{_scl_root}/usr/sbin/
+%endif
+
+%if %{?scl:1}0
+cp -a %{SOURCE151} %{SOURCE161} %{buildroot}%{_unitdir}
+%else
 cp -a %{SOURCE15} %{SOURCE16} %{buildroot}%{_unitdir}
+%endif
+
 %else
 mkdir -p %{buildroot}%{_sysconfdir}/xinetd.d
+
+%if %{?scl:1}0
+install -p -c -m 755 %{SOURCE111} %{buildroot}%{git_sysconfdir}/xinetd.d/git212-git
+%else
+
 # On EL <= 5, xinetd does not enable IPv6 by default
 enable_ipv6="        # xinetd does not enable IPv6 by default
         flags           = IPv6"
@@ -583,10 +635,11 @@ perl -p \
 %endif
     %{SOURCE11} > %{buildroot}%{_sysconfdir}/xinetd.d/git
 %endif
+%endif
 
 # Setup bash completion
-install -Dpm 644 contrib/completion/git-completion.bash %{buildroot}%{bashcompdir}/git
-ln -s git %{buildroot}%{bashcompdir}/gitk
+install -Dpm 644 contrib/completion/git-completion.bash %{buildroot}%{?_scl_root}/usr/share/bash-completion/git
+ln -s git %{buildroot}%{?_scl_root}/usr/share/bash-completion/gitk
 
 # Install tcsh completion
 mkdir -p %{buildroot}%{_datadir}/git-core/contrib/completion
@@ -614,12 +667,12 @@ desktop-file-install \
   --dir=%{buildroot}%{_datadir}/applications %{SOURCE13}
 
 # find translations
-%find_lang %{name} %{name}.lang
-cat %{name}.lang >> bin-man-doc-files
+%find_lang %{pkg_name} %{pkg_name}.lang
+cat %{pkg_name}.lang >> bin-man-doc-files
 
 # quiet some rpmlint complaints
-chmod -R g-w %{buildroot}
-find %{buildroot} -name git-mergetool--lib | xargs chmod a-x
+chmod -R g-w %{buildroot}%{?_scl_root}
+find %{buildroot}%{?_scl_root} -name git-mergetool--lib | xargs chmod a-x
 # rm -f {Documentation/technical,contrib/emacs,contrib/credential/gnome-keyring}/.gitignore
 # These files probably are not needed
 find . -name .gitignore -delete
@@ -641,20 +694,33 @@ rm -rf %{buildroot}
 
 %if %{use_systemd}
 %post daemon
+%if %{?scl:1}0
+%systemd_post git212-git@.service
+%else
 %systemd_post git@.service
+%endif
 
 %preun daemon
+%if %{?scl:1}0
+%systemd_preun git212-git@.service
+%else
 %systemd_preun git@.service
+%endif
 
 %postun daemon
+%if %{?scl:1}0
+%systemd_postun_with_restart git212-git@.service
+%else
 %systemd_postun_with_restart git@.service
+%endif
+
 %endif
 
 %files -f bin-man-doc-git-files
 %defattr(-,root,root)
 %if 0%{?fedora} >= 16 || 0%{?rhel} >= 7
 %{elispdir}
-%{_emacs_sitestartdir}/git-init.el
+%{?_scl_root}%{_emacs_sitestartdir}/git-init.el
 %endif
 %{_datadir}/git-core/contrib/hooks/update-paranoid
 %{_datadir}/git-core/contrib/hooks/setgitperms.perl
@@ -666,7 +732,7 @@ rm -rf %{buildroot}
 # exlude is best way here because of troubels with symlinks inside git-core/
 %exclude %{_datadir}/git-core/contrib/hooks/update-paranoid
 %exclude %{_datadir}/git-core/contrib/hooks/setgitperms.perl
-%{bashcomproot}
+%{_datadir}/bash-completion/
 %{_datadir}/git-core/
 
 %files core-doc -f man-doc-files-core
@@ -722,7 +788,7 @@ rm -rf %{buildroot}
 %{!?_without_docs: %{_mandir}/man1/git-citool.1*}
 %{!?_without_docs: %doc Documentation/git-citool.html}
 
-%files -n gitk
+%files -n %{?scl_prefix}gitk
 %defattr(-,root,root)
 %doc Documentation/*gitk*.txt
 %{_bindir}/*gitk*
@@ -730,24 +796,24 @@ rm -rf %{buildroot}
 %{!?_without_docs: %{_mandir}/man1/*gitk*.1*}
 %{!?_without_docs: %doc Documentation/*gitk*.html }
 
-%files -n perl-Git -f perl-git-files
+%files -n %{?scl_prefix}perl-Git -f perl-git-files
 %defattr(-,root,root)
 %exclude %{_mandir}/man3/*Git*SVN*.3pm*
 %{!?_without_docs: %{_mandir}/man3/*Git*.3pm*}
 
-%files -n perl-Git-SVN -f perl-git-svn-files
+%files -n %{?scl_prefix}perl-Git-SVN -f perl-git-svn-files
 %defattr(-,root,root)
 %{!?_without_docs: %{_mandir}/man3/*Git*SVN*.3pm*}
 
 %if 0%{?rhel} && 0%{?rhel} <= 6
-%files -n emacs-git
+%files -n %{?scl_prefix}emacs-git
 %defattr(-,root,root)
 %doc contrib/emacs/README
 %dir %{elispdir}
 %{elispdir}/*.elc
-%{_emacs_sitestartdir}/git-init.el
+%{?scl_prefix}%{_emacs_sitestartdir}/git-init.el
 
-%files -n emacs-git-el
+%files -n %{?scl_prefix}emacs-git-el
 %defattr(-,root,root)
 %{elispdir}/*.el
 %endif
@@ -756,22 +822,32 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 %doc Documentation/*daemon*.txt
 %if %{use_systemd}
+if %{?scl:1}0
+%{?_scl_root}/usr/sbin/git-daemon-scl-wrapper
+%{_unitdir}/git212-git.socket
+%{_unitdir}/git212-git@.service
+%else
 %{_unitdir}/git.socket
 %{_unitdir}/git@.service
+%endif
+%else
+%if %{?scl:1}0
+%config(noreplace)%{git_sysconfdir}/xinetd.d/git212-git
 %else
 %config(noreplace)%{_sysconfdir}/xinetd.d/git
 %endif
+%endif
 %{gitcoredir}/git-daemon
-%{_localstatedir}/lib/git
+%{_var}/lib/git
 %{!?_without_docs: %{_mandir}/man1/*daemon*.1*}
 %{!?_without_docs: %doc Documentation/*daemon*.html}
 
-%files -n gitweb
+%files -n %{?scl_prefix}gitweb
 %defattr(-,root,root)
 %doc gitweb/INSTALL gitweb/README
 %config(noreplace)%{_sysconfdir}/gitweb.conf
 %config(noreplace)%{_sysconfdir}/httpd/conf.d/git.conf
-%{_localstatedir}/www/git/
+%{?scl_prefix}%{_var}/www/git/
 
 %if %{gnome_keyring}
 %files gnome-keyring
@@ -784,6 +860,9 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
+* Tue Apr 11 2017 Jaroslaw Polok <jaroslaw.polok@cern.ch> - 2.12.2-1.1
+- repackage as Software Collection for CentOS 6/7
+
 * Wed Mar 29 2017 Gwyn Ciesla <limburgher@gmail.com> - 2.12.2-1
 - Update to 2.12.2
 

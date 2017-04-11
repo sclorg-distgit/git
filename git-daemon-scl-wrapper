@@ -2,7 +2,7 @@
 
 # We have to re-enable SCL environment, because /sbin/service
 # clears almost all environment variables.
-. /opt/rh/sclo-git25/enable
-export X_SCLS="$X_SCLS sclo-git25"
+. /opt/rh/sclo-git212/enable
+export X_SCLS="$X_SCLS sclo-git212"
 
-exec /opt/rh/sclo-git25/root/usr/libexec/git-core/git-daemon "$@"
+exec /opt/rh/sclo-git212/root/usr/libexec/git-core/git-daemon "$@"
