@@ -489,7 +489,7 @@ echo DOCBOOK_SUPPRESS_SP = 1 >> config.mak
 %global __requires_exclude %{?__requires_exclude:%__requires_exclude|}perl\\(Term::ReadKey\\)
 %endif
 %else
-cat << \EOF > %{name}-req
+cat << \EOF > %{pkg_name}-req
 #!/bin/sh
 %{__perl_requires} $* |\
 sed \
