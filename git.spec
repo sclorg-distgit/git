@@ -499,7 +499,7 @@ sed \
     -e '/perl(packed-refs)/d'
 EOF
 
-%global __perl_requires %{_builddir}/%{name}-%{version}/%{pkg_name}-req
+%global __perl_requires %{_builddir}/%{pkg_name}-%{version}/%{pkg_name}-req
 chmod +x %{__perl_requires}
 %endif
 
