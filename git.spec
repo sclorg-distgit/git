@@ -72,7 +72,7 @@
 %endif
 
 %{?scl:
-%filter_from_provides s|perl.*Git.*||g;s|perl.*SVN.*||g;
+%filter_from_provides s|perl.*Git.*||g;s|perl.*SVN.*||g;s|perl(Generators.*||g;
 %filter_from_requires s|perl.*Git.*||g;s|perl.*SVN.*||g;s|perl(packed-refs)||;s|perl(YAML::Any)||g;
 %filter_setup
 }
@@ -201,7 +201,7 @@ BuildArch:      noarch
 %endif
 Requires:       %{?scl_prefix}git = %{version}-%{release}
 %if %{gnome_keyring}
-Requires:       git-gnome-keyring = %{version}-%{release}
+Requires:       %{?scl_prefix}git-gnome-keyring = %{version}-%{release}
 %endif
 Requires:       %{?scl_prefix}git-cvs = %{version}-%{release}
 Requires:       %{?scl_prefix}git-email = %{version}-%{release}
@@ -812,7 +812,7 @@ rm -rf %{buildroot}
 %doc contrib/emacs/README
 %dir %{elispdir}
 %{elispdir}/*.elc
-%{?scl_prefix}%{_emacs_sitestartdir}/git-init.el
+%{?_scl_root}%{_emacs_sitestartdir}/git-init.el
 
 %files -n %{?scl_prefix}emacs-git-el
 %defattr(-,root,root)
@@ -848,7 +848,7 @@ rm -rf %{buildroot}
 %doc gitweb/INSTALL gitweb/README
 %config(noreplace)%{_sysconfdir}/gitweb.conf
 %config(noreplace)%{_sysconfdir}/httpd/conf.d/git.conf
-%{?scl_prefix}%{_var}/www/git/
+%{?_scl_root}%{_var}/www/git/
 
 %if %{gnome_keyring}
 %files gnome-keyring
