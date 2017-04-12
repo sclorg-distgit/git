@@ -622,7 +622,7 @@ cp -a %{SOURCE15} %{SOURCE16} %{buildroot}%{_unitdir}
 mkdir -p %{buildroot}%{_sysconfdir}/xinetd.d
 
 %if %{?scl:1}0
-install -p -c -m 755 %{SOURCE111} %{buildroot}%{git_sysconfdir}/xinetd.d/git212-git
+install -p -c -m 755 %{SOURCE111} %{buildroot}%{_sysconfdir}/xinetd.d/git212-git
 %else
 
 # On EL <= 5, xinetd does not enable IPv6 by default
@@ -833,7 +833,7 @@ rm -rf %{buildroot}
 %endif
 %else
 %if %{?scl:1}0
-%config(noreplace)%{git_sysconfdir}/xinetd.d/git212-git
+%config(noreplace)%{_sysconfdir}/xinetd.d/git212-git
 %else
 %config(noreplace)%{_sysconfdir}/xinetd.d/git
 %endif
