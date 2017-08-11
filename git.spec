@@ -87,7 +87,7 @@
 
 Name:           %{?scl_prefix}git
 Version:        2.12.2
-Release:        1%{?dist}
+Release:        1.2%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
@@ -127,6 +127,8 @@ Patch0:         git-1.8-gitweb-home-link.patch
 Patch1:         git-cvsimport-Ignore-cvsps-2.2b1-Branches-output.patch
 # https://bugzilla.redhat.com/600411
 Patch3:         git-1.7-el5-emacs-support.patch
+
+Patch100:       CVE-2017-1000117.patch
 
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
@@ -441,6 +443,8 @@ rm -rf "$gpghome" # Cleanup tmp gpg home dir
 %if %{emacs_old}
 %patch3 -p1
 %endif
+
+%patch100 -p1
 
 %if %{use_prebuilt_docs}
 mkdir -p prebuilt_docs/{html,man}
@@ -861,6 +865,9 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
+* Fri Aug 11 2017 Jaroslaw Polok <jaroslaw.polok@cern.ch> - 2.12.2-1.2
+- CVE-2017-1000117 security fix.
+
 * Tue Apr 11 2017 Jaroslaw Polok <jaroslaw.polok@cern.ch> - 2.12.2-1.1
 - repackage as Software Collection for CentOS 6/7
 
