@@ -61,7 +61,7 @@
 
 Name:           %{?scl_prefix}git
 Version:        2.5.5
-Release:        1.1%{?dist}
+Release:        1.2%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
@@ -92,6 +92,8 @@ Patch4:         git-infinite-loop.patch
 
 # solved since 2.7.0
 Patch10:        git-sendemail-big.patch
+
+Patch100:       CVE-2017-1000117.patch
 
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
@@ -371,6 +373,8 @@ Requires:       %{?scl_prefix}emacs-git = %{version}-%{release}
 %endif
 %patch4 -p1
 %patch10 -p1
+
+%patch100 -p1
 
 %if %{use_prebuilt_docs}
 mkdir -p prebuilt_docs/{html,man}
@@ -763,6 +767,9 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
+* Fri Aug 11 2017 Jaroslaw Polok <jaroslaw.polok@cern.ch> - 2.5.5-1.2
+- CVE-2017-1000117 security fix.
+
 * Mon Mar 21 2016 Jaroslaw Polok <jaroslaw.polok@cern.ch> - 2.5.5-1.1
 - repackage as Software Collection for CentOS 6/7
 
