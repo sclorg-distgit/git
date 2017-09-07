@@ -71,7 +71,7 @@
 
 Name:           %{?scl_prefix}git
 Version:        2.9.3
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 Group:          Development/Tools
@@ -114,6 +114,10 @@ Patch4:         0001-http-control-GSSAPI-credential-delegation.patch
 # fix infinite loop + test
 Patch5:         0001-Add-test-for-ls-tree-with-broken-symlink-under-refs-.patch
 Patch6:         0002-resolve_ref_unsafe-limit-the-number-of-stat_ref-retr.patch
+
+# CVE
+Patch7:         0003-Fix-CVE-2017-8386.patch
+Patch8:         git-cve-2017-1000117.patch
 
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
@@ -454,6 +458,8 @@ rm -rf "$gpghome" # Cleanup tmp gpg home dir
 %patch4 -p1
 %patch5 -p1
 %patch6 -p1
+%patch7 -p1
+%patch8 -p1
 
 %if %{use_prebuilt_docs}
 mkdir -p prebuilt_docs/{html,man}
@@ -864,6 +870,11 @@ rm -rf %{buildroot}
 # No files for you!
 
 %changelog
+* Fri Aug 11 2017 Petr Stodulka <pstodulk@redhat.com> - 2.9.3-3
+- prevent command injection via malicious ssh URLs
+- dissalow repo names beginning with dash
+  Resolves: CVE-2017-8386 CVE-2017-1000117
+
 * Fri Oct 14 2016 Petr Stodulka <pstodulk@redhat.com> - 2.9.3-2
 - fix infinite loop of "git ls-tree" on broken symlink
   Resolves: #1204191
