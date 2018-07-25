@@ -103,7 +103,7 @@
 
 Name:           %{?scl_prefix}git
 Version:        2.18.0
-Release:        3%{?rcrev}%{?dist}
+Release:        4%{?rcrev}%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 URL:            https://git-scm.com/
@@ -484,7 +484,7 @@ NO_PYTHON = 1
 %endif
 htmldir = %{?_pkgdocdir}%{!?_pkgdocdir:%{_docdir}/%{name}-%{version}}
 prefix = %{_prefix}
-perllibdir = %{perl_vendorlib}
+perllibdir = %{?scl:%{_scl_root}}%{perl_vendorlib}
 gitwebdir = %{_localstatedir}/www/git
 
 # Test options
@@ -613,8 +613,8 @@ find %{buildroot}{%{_bindir},%{gitexecdir}} -type f -name '*p4*' -exec rm -f {} 
 exclude_re="archimport|email|git-(citool|cvs|daemon|gui|p4|subtree|(remote-test)?svn)|gitk|p4merge"
 (find %{buildroot}{%{_bindir},%{_libexecdir}} -type f -o -type l | grep -vE "$exclude_re" | sed -e s@^%{buildroot}@@) > bin-man-doc-files
 (find %{buildroot}{%{_bindir},%{_libexecdir}} -mindepth 1 -type d | grep -vE "$exclude_re" | sed -e 's@^%{buildroot}@%dir @') >> bin-man-doc-files
-(find %{buildroot}%{perl_vendorlib} -type f | sed -e s@^%{buildroot}@@) > perl-git-files
-(find %{buildroot}%{perl_vendorlib} -mindepth 1 -type d | sed -e 's@^%{buildroot}@%dir @') >> perl-git-files
+(find %{buildroot}%{?scl:%{_scl_root}}%{perl_vendorlib} -type f | sed -e s@^%{buildroot}@@) > perl-git-files
+(find %{buildroot}%{?scl:%{_scl_root}}%{perl_vendorlib} -mindepth 1 -type d | sed -e 's@^%{buildroot}@%dir @') >> perl-git-files
 # Split out Git::SVN files
 grep Git/SVN perl-git-files > perl-git-svn-files
 sed -i "/Git\/SVN/ d" perl-git-files
@@ -908,6 +908,12 @@ make test || ./print-failed-test-output
 %{?with_docs:%{_pkgdocdir}/git-svn.html}
 
 %changelog
+* Tue Jul 17 2018 Sebastian Kisela <skisela@redhat.com> - 2.18.0-4
+- Fix %%{perllibdir} path
+- %%{perllibdir} now points to where perl-git modules are installed.
+  This was introduced in fedora commit:
+  f3c13faa206935a844e09c7dc9d78d6325100ced.
+
 * Tue Jul 17 2018 Sebastian Kisela <skisela@redhat.com> - 2.18.0-3
 - Initial rhscl-3.2-rh-git218 commit
 - Add %{scl*} macros to the spec file.
