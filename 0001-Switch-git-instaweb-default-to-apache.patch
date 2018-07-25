@@ -1,0 +1,43 @@
+From aebe9c096f7150eee901fcc59036a89c54c26a0b Mon Sep 17 00:00:00 2001
+From: Sebastian Kisela <skisela@redhat.com>
+Date: Mon, 16 Jul 2018 08:54:00 +0200
+Subject: [PATCH] Switch instaweb default HTTP daemon to httpd
+
+---
+ git-instaweb.sh | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/git-instaweb.sh b/git-instaweb.sh
+index 47e38f3..e089f0d 100755
+--- a/git-instaweb.sh
++++ b/git-instaweb.sh
+@@ -36,7 +36,7 @@ conf="$GIT_DIR/gitweb/httpd.conf"
+ # Defaults:
+ 
+ # if installed, it doesn't need further configuration (module_path)
+-test -z "$httpd" && httpd='lighttpd -f'
++test -z "$httpd" && httpd='httpd -f'
+ 
+ # Default is @@GITWEBDIR@@
+ test -z "$root" && root='@@GITWEBDIR@@'
+@@ -332,6 +332,8 @@ apache2_conf () {
+ 			module_path="/usr/lib/httpd/modules"
+ 		test -d "/usr/lib/apache2/modules" &&
+ 			module_path="/usr/lib/apache2/modules"
++		test -d "/etc/httpd/modules" &&
++			module_path="/etc/httpd/modules"
+ 	fi
+ 	bind=
+ 	test x"$local" = xtrue && bind='127.0.0.1:'
+@@ -356,7 +358,7 @@ EOF
+ 			break
+ 		fi
+ 	done
+-	for mod in mime dir env log_config authz_core
++	for mod in mime dir env log_config authz_core unixd
+ 	do
+ 		if test -e $module_path/mod_${mod}.so
+ 		then
+-- 
+2.14.4
+

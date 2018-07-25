@@ -103,7 +103,7 @@
 
 Name:           %{?scl_prefix}git
 Version:        2.18.0
-Release:        4%{?rcrev}%{?dist}
+Release:        5%{?rcrev}%{?dist}
 Summary:        Fast Version Control System
 License:        GPLv2
 URL:            https://git-scm.com/
@@ -138,6 +138,7 @@ Patch1:         git-cvsimport-Ignore-cvsps-2.2b1-Branches-output.patch
 # https://github.com/gitster/git/commit/f2cb01d35
 # https://public-inbox.org/git/20180601174644.13055-1-phillip.wood@talktalk.net/
 Patch2:         0001-add-p-fix-counting-empty-context-lines-in-edited-pat.patch
+Patch3:         0001-Switch-git-instaweb-default-to-apache.patch
 
 %if %{with docs}
 BuildRequires:  asciidoc >= 8.4.1
@@ -265,6 +266,7 @@ Requires:       %{?scl_prefix}git-p4 = %{version}-%{release}
 %endif
 Requires:       %{?scl_prefix}git-subtree = %{version}-%{release}
 Requires:       %{?scl_prefix}git-svn = %{version}-%{release}
+Requires:       %{?scl_prefix}git-instaweb = %{version}-%{release}
 Requires:       %{?scl_prefix}gitk = %{version}-%{release}
 Requires:       %{?scl_prefix}perl-Git = %{version}-%{release}
 %if ! %{defined perl_bootstrap}
@@ -430,6 +432,16 @@ Requires:       subversion
 %description svn
 %{summary}.
 
+%package instaweb
+Summary:        Repository browser in gitweb
+Group:          Development/Tools
+Requires:       %{?scl_prefix}git = %{version}-%{release}
+Requires:       %{?scl_prefix}gitweb = %{version}-%{release}
+Requires:       httpd
+
+%description instaweb
+A simple script to set up gitweb and a web server for browsing the local repository.
+
 %prep
 # Verify GPG signatures
 gpghome="$(mktemp -qd)" # Ensure we don't use any existing gpg keyrings
@@ -521,9 +533,15 @@ grep -rlZ '^use Git::LoadCPAN::' | xargs -r0 sed -i 's/Git::LoadCPAN:://g'
 %build
 %{?scl:scl enable %{scl_httpd} - << "EOF"}
 %{?scl:export CPATH="%{cpath_dir}:${CPATH}"}
-%make_build all %{?with_docs:doc}
+# asciidoc writes a timestamp to files it produces, based on the last
+# modified date of the source file, but is sensible to the timezone.
+# This makes the results differ according to the timezone of the build machine
+# and spurious changes will be seen.
+# Set the timezone to UTC as a workaround.
+# https://wiki.debian.org/ReproducibleBuilds/TimestampsInDocumentationGeneratedByAsciidoc
+TZ=UTC %make_build all %{?with_docs:doc}
 
-%make_build -C contrib/contacts/ all %{?with_docs:doc}
+TZ=UTC %make_build -C contrib/contacts/ all %{?with_docs:doc}
 
 %if %{libsecret}
 %make_build -C contrib/credential/libsecret/
@@ -531,7 +549,7 @@ grep -rlZ '^use Git::LoadCPAN::' | xargs -r0 sed -i 's/Git::LoadCPAN:://g'
 
 %make_build -C contrib/diff-highlight/
 
-%make_build -C contrib/subtree/ all %{?with_docs:doc}
+TZ=UTC %make_build -C contrib/subtree/ all %{?with_docs:doc}
 
 # Fix shebang in a few places to silence rpmlint complaints
 #
@@ -585,7 +603,7 @@ mkdir -p %{buildroot}%{httpdconfdir}
 mkdir -p %{buildroot}%{_sysconfdir}
 install -pm 0644 %{SOURCE13} %{buildroot}%{httpdconfdir}/%{?scl_prefix}%{gitweb_httpd_conf}
 sed "s|@PROJECTROOT@|%{_localstatedir}/lib/git|g" \
-    %{SOURCE14} > %{buildroot}%{_sysconfdir}/gitweb.conf
+    %{SOURCE14} > %{buildroot}%{_sysconfdir}/%{gitweb_httpd_conf}
 
 # install contrib/diff-highlight and clean up to avoid cruft in git-core-doc
 install -Dpm 0755 contrib/diff-highlight/diff-highlight \
@@ -610,7 +628,7 @@ find %{buildroot}{%{_bindir},%{gitexecdir}} \( -type f -o -type l \) -name 'git-
 find %{buildroot}{%{_bindir},%{gitexecdir}} -type f -name '*p4*' -exec rm -f {} ';'
 %endif
 
-exclude_re="archimport|email|git-(citool|cvs|daemon|gui|p4|subtree|(remote-test)?svn)|gitk|p4merge"
+exclude_re="archimport|email|git-(citool|cvs|daemon|gui|p4|subtree|(remote-test)?svn)|gitk|p4merge|instaweb"
 (find %{buildroot}{%{_bindir},%{_libexecdir}} -type f -o -type l | grep -vE "$exclude_re" | sed -e s@^%{buildroot}@@) > bin-man-doc-files
 (find %{buildroot}{%{_bindir},%{_libexecdir}} -mindepth 1 -type d | grep -vE "$exclude_re" | sed -e 's@^%{buildroot}@%dir @') >> bin-man-doc-files
 (find %{buildroot}%{?scl:%{_scl_root}}%{perl_vendorlib} -type f | sed -e s@^%{buildroot}@@) > perl-git-files
@@ -626,17 +644,17 @@ rm -rf %{buildroot}%{_mandir}
 
 mkdir -p %{buildroot}%{_localstatedir}/lib/git
 %if %{use_systemd}
-install -Dp -m 0644 %{SOURCE16} %{buildroot}%{_unitdir}/git.socket
+install -Dp -m 0644 %{SOURCE16} %{buildroot}%{_unitdir}/%{?scl_prefix}git.socket
 perl -p \
     -e "s|\@GITEXECDIR\@|%{gitexecdir}|g;" \
     -e "s|\@BASE_PATH\@|%{_localstatedir}/lib/git|g;" \
-    %{SOURCE15} > %{buildroot}%{_unitdir}/git@.service
+    %{SOURCE15} > %{buildroot}%{_unitdir}/%{?scl_prefix}git@.service
 %else
 mkdir -p %{buildroot}%{_sysconfdir}/xinetd.d
 perl -p \
     -e "s|\@GITEXECDIR\@|%{gitexecdir}|g;" \
     -e "s|\@BASE_PATH\@|%{_localstatedir}/lib/git|g;" \
-    %{SOURCE11} > %{buildroot}%{_sysconfdir}/xinetd.d/git
+    %{SOURCE11} > %{buildroot}%{_sysconfdir}/xinetd.d/%{?scl_prefix}git
 %endif
 
 # Setup bash completion
@@ -758,6 +776,27 @@ export GIT_TEST_HTTPD=true
 export GIT_TEST_SVNSERVE=true
 
 # Run the tests
+# check source files with hardcoded content - it's more for reminder
+# when new collection will be added in future
+%if 0%{?scl:1}
+  # scl enable is required to use
+  grep -q "^Exec=/usr/bin/scl enable %{scl}" %{buildroot}%{appdesktopdir}/*git-gui.desktop
+  %if 0%{?use_systemd}
+    grep -q "^ExecStart=-/usr/bin/scl enable %{scl}" %{buildroot}%{_unitdir}/%{?scl_prefix}git@.service
+  %endif
+
+  # and should be used correct paths - check at least that rh-gitXX is in path
+  grep -q "^Icon.*%{scl}" %{buildroot}%{appdesktopdir}/*git-gui.desktop
+  grep "%{_localstatedir}/www/git" %{buildroot}%{httpdconfdir}/%{?scl_prefix}%{gitweb_httpd_conf}
+  %if 0%{?use_systemd}
+    grep -qe "-- .*%{scl}" %{buildroot}%{_unitdir}/%{?scl_prefix}git@.service
+  %endif
+
+  # check Name/GenericName that contains rh-GitXX (with current XX, e.g. 29)
+  grep -qi "^Name=%{scl}" %{buildroot}%{appdesktopdir}/*git-gui.desktop
+  grep -qi "^GenericName=%{scl}" %{buildroot}%{appdesktopdir}/*git-gui.desktop
+
+%endif
 %{?scl:scl enable %{scl_httpd} - << "EOF"}
 make test || ./print-failed-test-output
 %{?scl:EOF}
@@ -770,7 +809,7 @@ make test || ./print-failed-test-output
 %systemd_preun %{?scl_prefix}git@.service
 
 %postun daemon
-%systemd_postun_with_restart git@.service
+%systemd_postun_with_restart %{?scl_prefix}git@.service
 %endif
 
 %files -f bin-man-doc-git-files
@@ -831,10 +870,10 @@ make test || ./print-failed-test-output
 %files daemon
 %{_pkgdocdir}/git-daemon*.txt
 %if %{use_systemd}
-%{_unitdir}/git.socket
-%{_unitdir}/git@.service
+%{_unitdir}/%{?scl_prefix}git.socket
+%{_unitdir}/%{?scl_prefix}git@.service
 %else
-%config(noreplace)%{_sysconfdir}/xinetd.d/git
+%config(noreplace)%{_sysconfdir}/xinetd.d/%{?scl_prefix}git
 %endif
 %{gitexecdir}/git-daemon
 %{_localstatedir}/lib/git
@@ -864,7 +903,7 @@ make test || ./print-failed-test-output
 %{_pkgdocdir}/*.gitweb
 %{_pkgdocdir}/gitweb*.txt
 %{?with_docs:%{_pkgdocdir}/gitweb*.html}
-%config(noreplace)%{_sysconfdir}/gitweb.conf
+%config(noreplace)%{_sysconfdir}/%{gitweb_httpd_conf}
 %config(noreplace)%{httpdconfdir}/%{?scl_prefix}%{gitweb_httpd_conf}
 %{_localstatedir}/www/git/
 
@@ -907,7 +946,26 @@ make test || ./print-failed-test-output
 %{?with_docs:%{_mandir}/man1/git-svn.1*}
 %{?with_docs:%{_pkgdocdir}/git-svn.html}
 
+%files instaweb
+%defattr(-,root,root)
+%{gitexecdir}/git-instaweb
+%{_pkgdocdir}/git-instaweb.txt
+%{?with_docs:%{_mandir}/man1/git-instaweb.1*}
+%{?with_docs:%{_pkgdocdir}/git-instaweb.html}
+
 %changelog
+* Thu Jul 19 2018 Sebastian Kisela <skisela@redhat.com> - 2.18.0-5
+- Add %%{?scl_prefix} macros for services + desktop files.
+- Add tests, checking hardcoded content of dist git sources,
+written by pstodulk.
+- Make git-gui.desktop, git@.service and gitweb-httpd.conf content
+point to the correct scl paths.
+- Move instaweb to separate subpackage
+- Switch instaweb default HTTP daemon to httpd
+- Use the correct apache module directory in instaweb.
+- Build docs with TZ=UTC to make results deterministic.
+  Inspired by https://wiki.debian.org/ReproducibleBuilds/TimestampsInDocumentationGeneratedByAsciidoc
+
 * Tue Jul 17 2018 Sebastian Kisela <skisela@redhat.com> - 2.18.0-4
 - Fix %%{perllibdir} path
 - %%{perllibdir} now points to where perl-git modules are installed.
