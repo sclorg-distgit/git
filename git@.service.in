@@ -1,0 +1,9 @@
+[Unit]
+Description=Git Repositories Server Daemon
+Documentation=man:git-daemon(1)
+
+[Service]
+User=nobody
+ExecStart=-/usr/bin/scl enable rh-git218 -- /opt/rh/rh-git218/root/usr/libexec/git-core/git-daemon --base-path=/var/opt/rh/rh-git218/lib/git --export-all --user-path=public_git --syslog --inetd --verbose
+StandardInput=socket
+StandardError=journal

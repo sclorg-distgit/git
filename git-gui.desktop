@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=rh-Git218 GUI
+GenericName=rh-Git218 GUI
+Comment=A graphical interface to Git
+Exec=/usr/bin/scl enable rh-git218 -- git gui
+Icon=/opt/rh/rh-git218/root/usr/share/git-gui/lib/git-gui.ico
+Terminal=false
+Type=Application
+Categories=Development;

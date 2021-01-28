@@ -1,0 +1,12 @@
+diff -ur a/git-instaweb.sh b/git-instaweb.sh
+--- a/git-instaweb.sh	2020-04-20 17:52:30.000000000 +0200
++++ b/git-instaweb.sh	2020-05-27 12:36:20.725300334 +0200
+@@ -36,7 +36,7 @@
+ # Defaults:
+ 
+ # if installed, it doesn't need further configuration (module_path)
+-test -z "$httpd" && httpd='lighttpd -f'
++test -z "$httpd" && httpd='httpd -f'
+ 
+ # Default is @@GITWEBDIR@@
+ test -z "$root" && root='@@GITWEBDIR@@'

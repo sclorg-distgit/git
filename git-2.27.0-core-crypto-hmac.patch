@@ -1,0 +1,70 @@
+diff -ur a/builtin/receive-pack.c b/builtin/receive-pack.c
+--- a/builtin/receive-pack.c	2020-06-01 17:49:27.000000000 +0200
++++ b/builtin/receive-pack.c	2020-06-15 15:28:48.149268576 +0200
+@@ -29,6 +29,8 @@
+ #include "commit-reach.h"
+ #include "worktree.h"
+ #include "shallow.h"
++#include <openssl/hmac.h>	
++#include <openssl/evp.h>
+ 
+ static const char * const receive_pack_usage[] = {
+ 	N_("git receive-pack <git-dir>"),
+@@ -419,43 +421,11 @@
+ 	return 0;
+ }
+ 
+-static void hmac_hash(unsigned char *out,
++static inline void hmac_hash(unsigned char *out,
+ 		      const char *key_in, size_t key_len,
+ 		      const char *text, size_t text_len)
+ {
+-	unsigned char key[GIT_MAX_BLKSZ];
+-	unsigned char k_ipad[GIT_MAX_BLKSZ];
+-	unsigned char k_opad[GIT_MAX_BLKSZ];
+-	int i;
+-	git_hash_ctx ctx;
+-
+-	/* RFC 2104 2. (1) */
+-	memset(key, '\0', GIT_MAX_BLKSZ);
+-	if (the_hash_algo->blksz < key_len) {
+-		the_hash_algo->init_fn(&ctx);
+-		the_hash_algo->update_fn(&ctx, key_in, key_len);
+-		the_hash_algo->final_fn(key, &ctx);
+-	} else {
+-		memcpy(key, key_in, key_len);
+-	}
+-
+-	/* RFC 2104 2. (2) & (5) */
+-	for (i = 0; i < sizeof(key); i++) {
+-		k_ipad[i] = key[i] ^ 0x36;
+-		k_opad[i] = key[i] ^ 0x5c;
+-	}
+-
+-	/* RFC 2104 2. (3) & (4) */
+-	the_hash_algo->init_fn(&ctx);
+-	the_hash_algo->update_fn(&ctx, k_ipad, sizeof(k_ipad));
+-	the_hash_algo->update_fn(&ctx, text, text_len);
+-	the_hash_algo->final_fn(out, &ctx);
+-
+-	/* RFC 2104 2. (6) & (7) */
+-	the_hash_algo->init_fn(&ctx);
+-	the_hash_algo->update_fn(&ctx, k_opad, sizeof(k_opad));
+-	the_hash_algo->update_fn(&ctx, out, the_hash_algo->rawsz);
+-	the_hash_algo->final_fn(out, &ctx);
++	HMAC(EVP_sha1(), key_in, key_len, text, text_len, out, NULL);
+ }
+ 
+ static char *prepare_push_cert_nonce(const char *path, timestamp_t stamp)
+diff -ur a/Makefile b/Makefile
+--- a/Makefile	2020-06-01 17:49:27.000000000 +0200
++++ b/Makefile	2020-06-15 15:00:45.212758547 +0200
+@@ -1830,6 +1830,8 @@
+ 	BASIC_CFLAGS += -DHAVE_GETDELIM
+ endif
+ 
++EXTLIBS += -lcrypto
++
+ ifneq ($(PROCFS_EXECUTABLE_PATH),)
+ 	procfs_executable_path_SQ = $(subst ','\'',$(PROCFS_EXECUTABLE_PATH))
+ 	BASIC_CFLAGS += '-DPROCFS_EXECUTABLE_PATH="$(procfs_executable_path_SQ)"'
